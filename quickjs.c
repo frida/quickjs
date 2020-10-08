@@ -390,6 +390,13 @@ struct JSRuntime {
     void *user_opaque;
 };
 
+typedef struct JSRuntimeInternalThreadState {
+    uintptr_t stack_top;
+    JSValue current_exception;
+    struct JSStackFrame *current_stack_frame;
+    struct list_head job_list;
+} JSRuntimeInternalThreadState;
+
 struct JSClass {
     uint32_t class_id; /* 0 means free entry */
     JSAtom class_name;
@@ -1143,6 +1150,7 @@ enum OPCodeEnum {
     OP_TEMP_END,
 };
 
+static void update_stack_limit(JSRuntime *rt);
 static int JS_InitAtoms(JSRuntime *rt);
 static JSAtom __JS_NewAtomInit(JSRuntime *rt, const char *str, int len,
                                int atom_type);
@@ -2216,6 +2224,43 @@ static const JSMallocFunctions def_malloc_funcs = {
 JSRuntime *JS_NewRuntime(void)
 {
     return JS_NewRuntime2(&def_malloc_funcs, NULL);
+}
+
+void JS_Enter(JSRuntime *rt)
+{
+    rt->stack_top = js_get_stack_pointer();
+    update_stack_limit(rt);
+}
+
+void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
+{
+    JSRuntimeInternalThreadState *s = (JSRuntimeInternalThreadState *)state;
+
+    s->stack_top = rt->stack_top;
+    s->current_exception = rt->current_exception;
+    s->current_stack_frame = rt->current_stack_frame;
+    memcpy(&s->job_list, &rt->job_list, sizeof(rt->job_list));
+
+    rt->stack_top = 0;
+    rt->current_exception = JS_NULL;
+    rt->current_stack_frame = NULL;
+    init_list_head(&rt->job_list);
+}
+
+void JS_Resume(JSRuntime *rt, const JSRuntimeThreadState *state)
+{
+    const JSRuntimeInternalThreadState *s =
+        (const JSRuntimeInternalThreadState *)state;
+
+    rt->stack_top = s->stack_top;
+    rt->current_exception = s->current_exception;
+    rt->current_stack_frame = s->current_stack_frame;
+    list_splice(&s->job_list, &rt->job_list);
+}
+
+void JS_Leave(JSRuntime *rt)
+{
+    rt->stack_top = 0;
 }
 
 void JS_SetMemoryLimit(JSRuntime *rt, size_t limit)
