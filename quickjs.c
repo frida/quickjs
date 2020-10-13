@@ -354,6 +354,8 @@ struct JSRuntime {
     BOOL current_exception_is_uncatchable : 8;
     /* true if inside an out of memory error, to avoid recursing */
     BOOL in_out_of_memory : 8;
+    /* and likewise if inside Error.prepareStackTrace() */
+    BOOL in_prepare_stack_trace : 8;
 
     struct JSStackFrame *current_stack_frame;
 
@@ -393,6 +395,7 @@ struct JSRuntime {
 typedef struct JSRuntimeInternalThreadState {
     uintptr_t stack_top;
     JSValue current_exception;
+    BOOL in_prepare_stack_trace : 8;
     struct JSStackFrame *current_stack_frame;
     struct list_head job_list;
 } JSRuntimeInternalThreadState;
@@ -540,6 +543,7 @@ struct JSContext {
     JSValue promise_ctor;
     JSValue native_error_proto[JS_NATIVE_ERROR_COUNT];
     JSValue iterator_ctor;
+    JSValue error_ctor;
     JSValue async_iterator_proto;
     JSValue array_proto_values;
     JSValue throw_type_error;
@@ -2238,11 +2242,13 @@ void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
 
     s->stack_top = rt->stack_top;
     s->current_exception = rt->current_exception;
+    s->in_prepare_stack_trace = rt->in_prepare_stack_trace;
     s->current_stack_frame = rt->current_stack_frame;
     memcpy(&s->job_list, &rt->job_list, sizeof(rt->job_list));
 
     rt->stack_top = 0;
     rt->current_exception = JS_NULL;
+    rt->in_prepare_stack_trace = FALSE;
     rt->current_stack_frame = NULL;
     init_list_head(&rt->job_list);
 }
@@ -2254,6 +2260,7 @@ void JS_Resume(JSRuntime *rt, const JSRuntimeThreadState *state)
 
     rt->stack_top = s->stack_top;
     rt->current_exception = s->current_exception;
+    rt->in_prepare_stack_trace = s->in_prepare_stack_trace;
     rt->current_stack_frame = s->current_stack_frame;
     list_splice(&s->job_list, &rt->job_list);
 }
@@ -2660,6 +2667,7 @@ JSContext *JS_NewContextRaw(JSRuntime *rt)
     ctx->iterator_ctor = JS_NULL;
     ctx->regexp_ctor = JS_NULL;
     ctx->promise_ctor = JS_NULL;
+    ctx->error_ctor = JS_NULL;
     init_list_head(&ctx->loaded_modules);
 
     if (JS_AddIntrinsicBasicObjects(ctx)) {
@@ -2778,6 +2786,7 @@ static void JS_MarkContext(JSRuntime *rt, JSContext *ctx,
     for(i = 0; i < JS_NATIVE_ERROR_COUNT; i++) {
         JS_MarkValue(rt, ctx->native_error_proto[i], mark_func);
     }
+    JS_MarkValue(rt, ctx->error_ctor, mark_func);
     for(i = 0; i < rt->class_count; i++) {
         JS_MarkValue(rt, ctx->class_proto[i], mark_func);
     }
@@ -2853,6 +2862,7 @@ void JS_FreeContext(JSContext *ctx)
     for(i = 0; i < JS_NATIVE_ERROR_COUNT; i++) {
         JS_FreeValue(ctx, ctx->native_error_proto[i]);
     }
+    JS_FreeValue(ctx, ctx->error_ctor);
     for(i = 0; i < rt->class_count; i++) {
         JS_FreeValue(ctx, ctx->class_proto[i]);
     }
@@ -7672,10 +7682,44 @@ static void build_backtrace(JSContext *ctx, JSValueConst error_obj,
         dbuf_putc(&dbuf, '\n');
     }
     dbuf_putc(&dbuf, '\0');
-    if (dbuf_error(&dbuf))
+    if (dbuf_error(&dbuf)) {
         str = JS_NULL;
-    else
+    } else {
+        JSRuntime *rt = ctx->rt;
+
         str = JS_NewString(ctx, (char *)dbuf.buf);
+
+        if (!rt->in_prepare_stack_trace && !JS_IsNull(ctx->error_ctor)) {
+            JSValue saved_exception, prepare;
+
+            rt->in_prepare_stack_trace = TRUE;
+
+            saved_exception = rt->current_exception;
+            rt->current_exception = JS_NULL;
+
+            prepare = JS_GetProperty(ctx, ctx->error_ctor,
+                                     JS_ATOM_prepareStackTrace);
+            if (!JS_IsUndefined(prepare)) {
+                JSValueConst args[] = {
+                    error_obj,
+                    str,
+                };
+                JSValue s;
+
+                s = JS_Call(ctx, prepare, JS_UNDEFINED, countof(args), args);
+                if (!JS_IsException(s)) {
+                    JS_FreeValue(ctx, str);
+                    str = s;
+                }
+            }
+            JS_FreeValue(ctx, prepare);
+
+            JS_FreeValue(ctx, rt->current_exception);
+            rt->current_exception = saved_exception;
+
+            rt->in_prepare_stack_trace = FALSE;
+        }
+    }
     dbuf_free(&dbuf);
     JS_DefinePropertyValue(ctx, error_obj, JS_ATOM_stack, str,
                            JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
@@ -56751,6 +56795,7 @@ static int JS_AddIntrinsicBasicObjects(JSContext *ctx)
                                     0);
     if (JS_IsException(obj))
         return -1;
+    ctx->error_ctor = JS_DupValue(ctx, obj);
 
     for(i = 0; i < JS_NATIVE_ERROR_COUNT; i++) {
         JSValue func_obj;
