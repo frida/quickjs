@@ -551,6 +551,8 @@ struct JSContext {
 
     JSValue global_obj; /* global object */
     JSValue global_var_obj; /* contains the global let/const definitions */
+    JSGlobalAccessFunctions *global_access_funcs;
+    JSGlobalAccessFunctions global_access_funcs_storage;
 
     uint64_t random_state;
 
@@ -2889,6 +2891,19 @@ void JS_FreeContext(JSContext *ctx)
 JSRuntime *JS_GetRuntime(JSContext *ctx)
 {
     return ctx->rt;
+}
+
+void JS_SetGlobalAccessFunctions(JSContext *ctx,
+                                 const JSGlobalAccessFunctions *af)
+{
+    if (af != NULL) {
+        memcpy(&ctx->global_access_funcs_storage, af, sizeof(*af));
+        ctx->global_access_funcs = &ctx->global_access_funcs_storage;
+    } else {
+        ctx->global_access_funcs = NULL;
+        memset(&ctx->global_access_funcs_storage, 0,
+               sizeof(ctx->global_access_funcs_storage));
+    }
 }
 
 static void update_stack_limit(JSRuntime *rt)
@@ -10988,6 +11003,38 @@ static int JS_CheckDefineGlobalVar(JSContext *ctx, JSAtom prop, int flags)
     return 0;
 }
 
+static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
+                               BOOL throw_ref_error)
+{
+    JSValue res;
+    JSGlobalAccessFunctions *af;
+
+    res = JS_GetPropertyInternal(ctx, ctx->global_obj, prop,
+                                 ctx->global_obj, throw_ref_error);
+
+    if (unlikely((af = ctx->global_access_funcs) != NULL)) {
+        JSRuntime *rt = ctx->rt;
+
+        if (JS_IsException(res) || (!throw_ref_error && JS_IsUndefined(res))) {
+            JSValue saved_exception, replacement_res;
+
+            saved_exception = rt->current_exception;
+            rt->current_exception = JS_NULL;
+
+            replacement_res = af->get(ctx, prop, af->opaque);
+            if (!JS_IsUndefined(replacement_res) && !JS_IsException(replacement_res)) {
+                res = replacement_res;
+                JS_FreeValue(ctx, saved_exception);
+            } else {
+                JS_FreeValue(ctx, rt->current_exception);
+                rt->current_exception = saved_exception;
+            }
+        }
+    }
+
+    return res;
+}
+
 /* construct a reference to a global variable */
 static int JS_GetGlobalVarRef(JSContext *ctx, JSAtom prop, JSValue *sp)
 {
@@ -18743,10 +18790,8 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                         goto exception;
                     } else {
                         sf->cur_pc = pc;
-                        sp[0] = JS_GetPropertyInternal(ctx, ctx->global_obj,
-                                                       cv->var_name,
-                                                       ctx->global_obj,
-                                                       opcode - OP_get_var_undef);
+                        sp[0] = JS_GetGlobalVar(ctx, cv->var_name,
+                                                opcode - OP_get_var_undef);
                         if (JS_IsException(sp[0]))
                             goto exception;
                     }
