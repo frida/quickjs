@@ -2671,15 +2671,13 @@ static inline void set_value(JSContext *ctx, JSValue *pval, JSValue new_val)
 
 void JS_SetClassProto(JSContext *ctx, JSClassID class_id, JSValue obj)
 {
-    JSRuntime *rt = ctx->rt;
-    assert(class_id < rt->class_count);
+    assert(class_id < ctx->rt->class_count);
     set_value(ctx, &ctx->class_proto[class_id], obj);
 }
 
 JSValue JS_GetClassProto(JSContext *ctx, JSClassID class_id)
 {
-    JSRuntime *rt = ctx->rt;
-    assert(class_id < rt->class_count);
+    assert(class_id < ctx->rt->class_count);
     return JS_DupValue(ctx, ctx->class_proto[class_id]);
 }
 
@@ -8592,11 +8590,16 @@ static int num_keys_cmp(const void *p1, const void *p2, void *opaque)
     JSAtom atom1 = ((const JSPropertyEnum *)p1)->atom;
     JSAtom atom2 = ((const JSPropertyEnum *)p2)->atom;
     uint32_t v1, v2;
+#ifndef NDEBUG
     BOOL atom1_is_integer, atom2_is_integer;
 
     atom1_is_integer = JS_AtomIsArrayIndex(ctx, &v1, atom1);
     atom2_is_integer = JS_AtomIsArrayIndex(ctx, &v2, atom2);
     assert(atom1_is_integer && atom2_is_integer);
+#else
+    JS_AtomIsArrayIndex(ctx, &v1, atom1);
+    JS_AtomIsArrayIndex(ctx, &v2, atom2);
+#endif
     if (v1 < v2)
         return -1;
     else if (v1 == v2)
@@ -37587,11 +37590,12 @@ JSValue JS_EvalThis(JSContext *ctx, JSValueConst this_obj,
                     const char *input, size_t input_len,
                     const char *filename, int eval_flags)
 {
-    int eval_type = eval_flags & JS_EVAL_TYPE_MASK;
     JSValue ret;
-
+#ifndef NDEBUG
+    int eval_type = eval_flags & JS_EVAL_TYPE_MASK;
     assert(eval_type == JS_EVAL_TYPE_GLOBAL ||
            eval_type == JS_EVAL_TYPE_MODULE);
+#endif
     ret = JS_EvalInternal(ctx, this_obj, input, input_len, filename,
                           eval_flags, -1);
     return ret;
