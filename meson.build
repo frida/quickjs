@@ -31,6 +31,10 @@ sources = [
 cdata = configuration_data()
 cdata.set_quoted('CONFIG_VERSION', meson.project_version())
 
+if cc.has_function('malloc_usable_size')
+  cdata.set('HAVE_MALLOC_USABLE_SIZE', 1)
+endif
+
 if get_option('libc')
   headers += 'quickjs-libc.h'
   sources += 'quickjs-libc.c'
