@@ -37,6 +37,9 @@
 #include <time.h>
 #include <fenv.h>
 #include <math.h>
+#if defined(HAVE_UNISTD_H)
+#include <unistd.h>
+#endif
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
 #elif defined(__linux__) || defined(__GLIBC__)
