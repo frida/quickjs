@@ -38188,6 +38188,31 @@ static void JS_WriteString(BCWriterState *s, JSString *p)
     }
 }
 
+static int JS_WriteRegExpByteSwapped(BCWriterState *s, JSValueConst obj)
+{
+    JSString *re_bytecode;
+    JSValue swapped_val;
+    JSString *swapped;
+
+    re_bytecode = JS_VALUE_GET_STRING(obj);
+
+    swapped_val = js_new_string8_len(s->ctx, (const char *)re_bytecode->u.str8, re_bytecode->len);
+    if (JS_IsException(swapped_val))
+        goto fail;
+    swapped = JS_VALUE_GET_STRING(swapped_val);
+
+    lre_byte_swap(swapped->u.str8, swapped->len);
+
+    bc_put_u8(s, BC_TAG_STRING);
+    JS_WriteString(s, swapped);
+
+    JS_FreeValue(s->ctx, swapped_val);
+
+    return 0;
+ fail:
+    return -1;
+}
+
 static int JS_WriteBigInt(BCWriterState *s, JSValueConst obj)
 {
     JSBigIntBuf buf;
@@ -38244,7 +38269,8 @@ static int JS_WriteFunctionTag(BCWriterState *s, JSValueConst obj)
     JSFunctionBytecode *b = JS_VALUE_GET_PTR(obj);
     uint32_t flags;
     int idx, i;
-
+    uint8_t *idx_needs_regexp_bswap = NULL;
+    
     bc_put_u8(s, BC_TAG_FUNCTION_BYTECODE);
     flags = idx = 0;
     bc_set_flags(&flags, &idx, b->has_prototype, 1);
@@ -38318,13 +38344,64 @@ static int JS_WriteFunctionTag(BCWriterState *s, JSValueConst obj)
             bc_put_leb128(s, 0);
         }
     }
+    
+    if (is_be()) {
+        uint8_t *bc_buf = b->byte_code_buf;
+        int bc_len = b->byte_code_len;
+        int pos, op;
+        uint32_t prev_push_const_idx = 0;
 
-    for(i = 0; i < b->cpool_count; i++) {
-        if (JS_WriteObjectRec(s, b->cpool[i]))
-            goto fail;
+        pos = 0;
+        while (pos < bc_len) {
+            op = bc_buf[pos];
+
+            switch(op) {
+            case OP_push_const:
+                prev_push_const_idx = get_u32(bc_buf + pos + 1);
+                break;
+            case OP_push_const8:
+                prev_push_const_idx = get_u8(bc_buf + pos + 1);
+                break;
+            case OP_regexp:
+                if (!idx_needs_regexp_bswap) {
+                    idx_needs_regexp_bswap = js_malloc(s->ctx, b->cpool_count);
+                    if (!idx_needs_regexp_bswap)
+                        goto fail;
+                    memset(idx_needs_regexp_bswap, 0, b->cpool_count);
+                }
+                idx_needs_regexp_bswap[prev_push_const_idx] = TRUE;
+            default:
+                break;
+            }
+
+            pos += short_opcode_info(op).size;
+        }
+
+        if (!idx_needs_regexp_bswap)
+            goto no_bswap_needed;
+
+        for(i = 0; i < b->cpool_count; i++) {
+            if (idx_needs_regexp_bswap[i]) {
+                if (JS_WriteRegExpByteSwapped(s, b->cpool[i]))
+                    goto fail;
+            } else {
+                if (JS_WriteObjectRec(s, b->cpool[i]))
+                    goto fail;
+            }
+        }
+
+        js_free(s->ctx, idx_needs_regexp_bswap);
+    } else {
+ no_bswap_needed:
+        for(i = 0; i < b->cpool_count; i++) {
+            if (JS_WriteObjectRec(s, b->cpool[i]))
+                goto fail;
+        }
     }
+
     return 0;
  fail:
+    js_free(s->ctx, idx_needs_regexp_bswap);
     return -1;
 }
 
@@ -39157,6 +39234,38 @@ static int BC_add_object_ref(BCReaderState *s, JSValueConst obj)
     return BC_add_object_ref1(s, JS_VALUE_GET_OBJ(obj));
 }
 
+static void JS_ReadRegExpsByteSwapped(JSFunctionBytecode *b)
+{
+    uint8_t *bc_buf = b->byte_code_buf;
+    int bc_len = b->byte_code_len;
+    int pos, op;
+    uint32_t prev_push_const_idx = 0;
+
+    pos = 0;
+    while (pos < bc_len) {
+        op = bc_buf[pos];
+
+        switch(op) {
+        case OP_push_const:
+            prev_push_const_idx = get_u32(bc_buf + pos + 1);
+            break;
+        case OP_push_const8:
+            prev_push_const_idx = get_u8(bc_buf + pos + 1);
+            break;
+        case OP_regexp:
+            {
+                JSString *re_bytecode = JS_VALUE_GET_STRING(b->cpool[prev_push_const_idx]);
+                lre_byte_swap(re_bytecode->u.str8, re_bytecode->len);
+            }
+            break;
+        default:
+            break;
+        }
+
+        pos += short_opcode_info(op).size;
+    }
+}
+
 static JSValue JS_ReadFunctionTag(BCReaderState *s)
 {
     JSContext *ctx = s->ctx;
@@ -39351,6 +39460,8 @@ static JSValue JS_ReadFunctionTag(BCReaderState *s)
             b->cpool[i] = val;
         }
         bc_read_trace(s, "}\n");
+        if (is_be())
+            JS_ReadRegExpsByteSwapped(b);
     }
     b->realm = JS_DupContext(ctx);
     return obj;

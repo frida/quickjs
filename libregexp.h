@@ -53,6 +53,7 @@ const char *lre_get_groupnames(const uint8_t *bc_buf);
 int lre_exec(uint8_t **capture,
              const uint8_t *bc_buf, const uint8_t *cbuf, int cindex, int clen,
              int cbuf_type, void *opaque);
+void lre_byte_swap(uint8_t *bc_buf, int bc_buf_len);
 
 int lre_parse_escape(const uint8_t **pp, int allow_utf16);
 
