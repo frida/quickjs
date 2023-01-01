@@ -671,7 +671,13 @@ static js_force_inline JSValue JS_NewFloat64(JSContext *ctx, double d)
         uint64_t u;
     } u, t;
     u.d = d;
-    val = (int32_t)d;
+    if (d < INT32_MIN) {
+           val = INT32_MIN;
+    } else if (d > INT32_MAX) {
+           val = INT32_MAX;
+    } else {
+           val = (int32_t)d;
+    }
     t.d = val;
     /* -0 cannot be represented as integer, so we compare the bit
         representation */

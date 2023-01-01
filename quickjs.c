@@ -10843,9 +10843,9 @@ static int JS_ToInt32SatFree(JSContext *ctx, int *pres, JSValue val)
             if (isnan(d)) {
                 ret = 0;
             } else {
-                if (d < INT32_MIN)
+                if (d < (double)INT32_MIN)
                     ret = INT32_MIN;
-                else if (d > INT32_MAX)
+                else if (d > (double)INT32_MAX)
                     ret = INT32_MAX;
                 else
                     ret = (int)d;
@@ -10917,9 +10917,9 @@ static int JS_ToInt64SatFree(JSContext *ctx, int64_t *pres, JSValue val)
             if (isnan(d)) {
                 *pres = 0;
             } else {
-                if (d < INT64_MIN)
+                if (d < (double)INT64_MIN)
                     *pres = INT64_MIN;
-                else if (d > INT64_MAX)
+                else if (d > (double)INT64_MAX)
                     *pres = INT64_MAX;
                 else
                     *pres = (int64_t)d;
@@ -48490,7 +48490,7 @@ static JSValue js_date_constructor(JSContext *ctx, JSValueConst new_target,
     // Date(y, mon, d, h, m, s, ms)
     JSValue rv;
     int i, n;
-    double a, val;
+    double val;
 
     if (JS_IsUndefined(new_target)) {
         /* invoked as function */
@@ -48524,7 +48524,7 @@ static JSValue js_date_constructor(JSContext *ctx, JSValueConst new_target,
         }
         val = time_clip(val);
     } else {
-        double fields[] = { 0, 0, 1, 0, 0, 0, 0 };
+        double a, fields[] = { 0, 0, 1, 0, 0, 0, 0 };
         if (n > 7)
             n = 7;
         for(i = 0; i < n; i++) {
@@ -54111,7 +54111,7 @@ static JSValue js_atomics_wait(JSContext *ctx,
     }
     if (JS_ToFloat64(ctx, &d, argv[3]))
         return JS_EXCEPTION;
-    if (isnan(d) || d > INT64_MAX)
+    if (isnan(d) || d > (double)INT64_MAX)
         timeout = INT64_MAX;
     else if (d < 0)
         timeout = 0;
