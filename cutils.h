@@ -133,6 +133,10 @@ static inline int clz32(unsigned int a)
     unsigned long idx;
     _BitScanReverse(&idx, a);
     return 31 ^ idx;
+#elif defined(__TINYC__)
+    a = a - ((a >> 1) & 0x55555555);
+    a = (a & 0x33333333) + ((a >> 2) & 0x33333333);
+    return (((a + (a >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
 #else
     return __builtin_clz(a);
 #endif
@@ -141,7 +145,7 @@ static inline int clz32(unsigned int a)
 /* WARNING: undefined if a = 0 */
 static inline int clz64(uint64_t a)
 {
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
     unsigned long where;
 #if INTPTR_MAX >= INT64_MAX
     if (_BitScanReverse64(&where, a))
@@ -153,6 +157,10 @@ static inline int clz64(uint64_t a)
         return (int)(63 - where);
 #endif
     return 64; /* undefined behavior */
+#elif defined(__TINYC__)
+    a = a - ((a >> 1) & 0x5555555555555555);
+    a = (a & 0x3333333333333333) + ((a >> 2) & 0x3333333333333333);
+    return (((a + (a >> 4)) & 0x0F0F0F0F0F0F0F0F) * 0x0101010101010101) >> 24;
 #else
     return __builtin_clzll(a);
 #endif
@@ -161,10 +169,13 @@ static inline int clz64(uint64_t a)
 /* WARNING: undefined if a = 0 */
 static inline int ctz32(unsigned int a)
 {
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
     unsigned long idx;
     _BitScanForward(&idx, a);
     return 31 ^ idx;
+#elif defined(__TINYC__)
+    const unsigned int m = 0x01010101;
+    return (unsigned)((((a - 1) ^ a) & (m - 1)) * m) >> 24;
 #else
     return __builtin_ctz(a);
 #endif
@@ -185,6 +196,10 @@ static inline int ctz64(uint64_t a)
         return (int)(where + 32);
 #endif
     return 64;
+#elif defined(__TINYC__)
+    const unsigned long long m = 0x0101010101010101ULL;
+    a ^= a - 1;
+    return (unsigned)(((unsigned long long)((a & (m - 1)) * m)) >> 56);
 #else
     return __builtin_ctzll(a);
 #endif
