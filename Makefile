@@ -43,6 +43,9 @@ endif
 # installation directory
 prefix=/usr/local
 
+# avoid stack overflow on recursive calls
+CONFIG_STACK_CHECK=y
+# CONFIG_STACK_SIZE_MAX=0xffff
 # use the gprof profiler
 #CONFIG_PROFILE=y
 # use address sanitizer
@@ -62,6 +65,12 @@ ifdef CONFIG_WIN32
 else
   CROSS_PREFIX=
   EXE=
+endif
+ifdef CONFIG_STACK_CHECK
+  CFLAGS += -DCONFIG_STACK_CHECK=1
+ifdef CONFIG_STACK_SIZE_MAX
+  CFLAGS += -DCONFIG_STACK_SIZE_MAX=$(CONFIG_STACK_SIZE_MAX)
+endif
 endif
 ifdef CONFIG_CLANG
   HOST_CC=clang
