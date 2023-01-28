@@ -425,6 +425,22 @@ typedef struct JSRuntimeInternalThreadState {
     struct list_head job_list;
 } JSRuntimeInternalThreadState;
 
+typedef struct JSCallstackSnapshotEntry {
+    JSValue func;
+    void *frame;
+} JSCallstackSnapshotEntry;
+
+typedef struct JSInternalCallstackSnapshot {
+    int num_entries;
+    JSCallstackSnapshotEntry entries[32];
+} JSInternalCallstackSnapshot;
+
+typedef struct JSInternalCallstackIter {
+    const JSInternalCallstackSnapshot *snapshot;
+    JSContext *ctx;
+    int i;
+} JSInternalCallstackIter;
+
 struct JSClass {
     uint32_t class_id; /* 0 means free entry */
     JSAtom class_name;
@@ -1186,6 +1202,8 @@ static int JS_InitAtoms(JSRuntime *rt);
 static JSAtom __JS_NewAtomInit(JSRuntime *rt, const char *str, int len,
                                int atom_type);
 static void JS_FreeAtomStruct(JSRuntime *rt, JSAtomStruct *p);
+static int find_line_num(JSContext *ctx, JSFunctionBytecode *b,
+                         uint32_t pc_value, int *pcol_num);
 static void free_function_bytecode(JSRuntime *rt, JSFunctionBytecode *b);
 static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
                                   JSValueConst this_obj,
@@ -7458,6 +7476,132 @@ void JS_DumpMemoryUsage(FILE *fp, const JSMemoryUsage *s, JSRuntime *rt)
         fprintf(fp, "%-20s %8"PRId64" %8"PRId64"\n",
                 "binary objects", s->binary_object_count, s->binary_object_size);
     }
+}
+
+void JS_CaptureCallstack(JSRuntime *rt, const JSRuntimeThreadState *state,
+                         JSCallstackSnapshot *snapshot)
+{
+    const JSRuntimeInternalThreadState *ts =
+        (JSRuntimeInternalThreadState *)state;
+    JSInternalCallstackSnapshot *cs = (JSInternalCallstackSnapshot *)snapshot;
+    struct JSStackFrame *sf;
+    int i;
+
+    cs->num_entries = 0;
+    i = 0;
+    for (sf = (ts != NULL) ? ts->current_stack_frame : rt->current_stack_frame;
+         sf != NULL && i < countof(cs->entries);
+         sf = sf->prev_frame) {
+        JSCallstackSnapshotEntry *entry = &cs->entries[i];
+
+        entry->func = JS_DupValueRT(rt, sf->cur_func);
+        entry->frame = sf;
+
+        cs->num_entries++;
+        i++;
+    }
+}
+
+void JS_FreeCallstack(JSRuntime *rt, JSCallstackSnapshot *snapshot)
+{
+    JSInternalCallstackSnapshot *cs = (JSInternalCallstackSnapshot *)snapshot;
+    int i;
+
+    for (i = 0; i < cs->num_entries; i++)
+        JS_FreeValueRT(rt, cs->entries[i].func);
+}
+
+void JS_CallstackIterInit(JSCallstackIter *iter,
+                          const JSCallstackSnapshot *snapshot,
+                          JSContext *ctx)
+{
+    JSInternalCallstackIter *it = (JSInternalCallstackIter *)iter;
+
+    it->snapshot = (JSInternalCallstackSnapshot *)snapshot;
+    it->ctx = ctx;
+    it->i = it->snapshot->num_entries - 1;
+}
+
+static const char *get_func_name(JSContext *ctx, JSValueConst func)
+{
+    JSProperty *pr;
+    JSShapeProperty *prs;
+    JSValueConst val;
+
+    if (JS_VALUE_GET_TAG(func) != JS_TAG_OBJECT)
+        return NULL;
+    prs = find_own_property(&pr, JS_VALUE_GET_OBJ(func), JS_ATOM_name);
+    if (!prs)
+        return NULL;
+    if ((prs->flags & JS_PROP_TMASK) != JS_PROP_NORMAL)
+        return NULL;
+    val = pr->u.value;
+    if (JS_VALUE_GET_TAG(val) != JS_TAG_STRING)
+        return NULL;
+    return JS_ToCString(ctx, val);
+}
+
+JS_BOOL JS_CallstackIterNext(JSCallstackIter *iter, char **description,
+                             void **frame)
+{
+    JSInternalCallstackIter *it = (JSInternalCallstackIter *)iter;
+    JSContext *ctx = it->ctx;
+    const JSCallstackSnapshotEntry *entry;
+    DynBuf dbuf;
+
+    if (it->i < 0)
+        return 0;
+
+    entry = &it->snapshot->entries[it->i];
+    it->i--;
+
+    js_dbuf_init(ctx, &dbuf);
+
+    if (!JS_IsUndefined(entry->func)) {
+        const char *func_name_str;
+        JSObject *p;
+
+        func_name_str = get_func_name(ctx, entry->func);
+        if (func_name_str && func_name_str[0] != '\0')
+            dbuf_putstr(&dbuf, func_name_str);
+        else
+            dbuf_putstr(&dbuf, "<anonymous>");
+
+        p = JS_VALUE_GET_OBJ(entry->func);
+        if (js_class_has_bytecode(p->class_id)) {
+            JSFunctionBytecode *b;
+
+            b = p->u.func.function_bytecode;
+            if (b->has_debug) {
+                const char *atom_str;
+                int line_num, col_num;
+
+                atom_str = JS_AtomToCString(ctx, b->debug.filename);
+                dbuf_printf(&dbuf, " (%s",
+                            atom_str ? atom_str : "<null>");
+                JS_FreeCString(ctx, atom_str);
+
+                line_num = find_line_num(ctx, b, 0, &col_num);
+                if (line_num != -1)
+                    dbuf_printf(&dbuf, ":%d", line_num);
+
+                dbuf_putc(&dbuf, ')');
+            }
+        } else {
+            dbuf_printf(&dbuf, " (native)");
+        }
+
+        JS_FreeCString(ctx, func_name_str);
+    } else {
+        dbuf_putstr(&dbuf, "<detached>");
+    }
+
+    dbuf_putc(&dbuf, '\0');
+
+    *description = (char *)dbuf.buf;
+    *frame = entry->frame;
+
+    return 1;
 }
 
 JSValue JS_GetGlobalObject(JSContext *ctx)
@@ -17919,7 +18063,6 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
 
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
-    rt->current_stack_frame = sf;
     ctx = p->u.cfunc.realm; /* change the current realm */
     sf->js_mode = 0;
     sf->cur_func = JS_VALUE_UNCONST(func_obj);
@@ -17936,6 +18079,8 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
         sf->arg_count = arg_count;
     }
     sf->arg_buf = (JSValue*)arg_buf;
+
+    rt->current_stack_frame = sf;
 
     func = p->u.cfunc.c_function;
     switch(cproto) {

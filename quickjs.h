@@ -361,6 +361,14 @@ typedef struct JSRuntimeThreadState {
     char data[64];
 } JSRuntimeThreadState;
 
+typedef struct JSCallstackSnapshot {
+    char data[1024];
+} JSCallstackSnapshot;
+
+typedef struct JSCallstackIter {
+    char data[32];
+} JSCallstackIter;
+
 typedef struct JSMallocState {
     size_t malloc_count;
     size_t malloc_size;
@@ -467,6 +475,15 @@ typedef struct JSMemoryUsage {
 
 void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s);
 void JS_DumpMemoryUsage(FILE *fp, const JSMemoryUsage *s, JSRuntime *rt);
+
+void JS_CaptureCallstack(JSRuntime *rt, const JSRuntimeThreadState *state,
+                         JSCallstackSnapshot *snapshot);
+void JS_FreeCallstack(JSRuntime *rt, JSCallstackSnapshot *snapshot);
+void JS_CallstackIterInit(JSCallstackIter *iter,
+                          const JSCallstackSnapshot *snapshot,
+                          JSContext *ctx);
+JS_BOOL JS_CallstackIterNext(JSCallstackIter *iter, char **description,
+                             void **frame);
 
 /* atom support */
 #define JS_ATOM_NULL 0
