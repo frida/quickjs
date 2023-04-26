@@ -2762,10 +2762,18 @@ static JSAtomKindEnum JS_AtomGetKind(JSContext *ctx, JSAtom v)
         case JS_ATOM_HASH_PRIVATE:
             return JS_ATOM_KIND_PRIVATE;
         default:
+#if CONFIG_NOABORT
+            return JS_ATOM_NULL;
+#else
             abort();
+#endif
         }
     default:
+#if CONFIG_NOABORT
+        return JS_ATOM_NULL;
+#else
         abort();
+#endif
     }
 }
 
@@ -5555,7 +5563,11 @@ static void free_gc_object(JSRuntime *rt, JSGCObjectHeader *gp)
         free_function_bytecode(rt, (JSFunctionBytecode *)gp);
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
 }
 
@@ -5621,7 +5633,11 @@ void __JS_FreeValueRT(JSRuntime *rt, JSValue v)
         }
         break;
     case JS_TAG_MODULE:
+#if QJS_NOABORT
+        break;
+#else
         abort(); /* never freed here */
+#endif
         break;
 #ifdef CONFIG_BIGNUM
     case JS_TAG_BIG_INT:
@@ -5648,7 +5664,11 @@ void __JS_FreeValueRT(JSRuntime *rt, JSValue v)
         break;
     default:
         printf("__JS_FreeValue: unknown tag=%d\n", tag);
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
 }
 
@@ -5777,7 +5797,11 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
         }
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
 }
 
@@ -9564,8 +9588,11 @@ static int JS_DefineAutoInitProperty(JSContext *ctx, JSValueConst this_obj,
     p = JS_VALUE_GET_OBJ(this_obj);
 
     if (find_own_property(&pr, p, prop)) {
+#if QJS_NOABORT
         /* property already exists */
+#else
         abort();
+#endif
         return FALSE;
     }
 
@@ -10673,7 +10700,12 @@ static JSValue js_atof(JSContext *ctx, const char *str, const char **pp,
         val = ctx->rt->bigdecimal_ops.from_string(ctx, buf, radix, flags, NULL);
         break;
     default:
+#if QJS_NOABORT
+        val = JS_NewFloat64(ctx, 0);
+        break;
+#else
         abort();
+#endif
     }
 #else
     {
@@ -10819,7 +10851,7 @@ static JSValue JS_ToNumeric(JSContext *ctx, JSValueConst val)
 static __exception int __JS_ToFloat64Free(JSContext *ctx, double *pres,
                                           JSValue val)
 {
-    double d;
+    double d = 0.0;
     uint32_t tag;
 
     val = JS_ToNumberFree(ctx, val);
@@ -10849,7 +10881,11 @@ static __exception int __JS_ToFloat64Free(JSContext *ctx, double *pres,
         break;
 #endif
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     *pres = d;
     return 0;
@@ -12729,7 +12765,11 @@ static int get_ovop_from_opcode(OPCodeEnum op)
     case OP_dec:
         return JS_OVOP_DEC;
     default:
+#if QJS_NOABORT
+        return JS_OVOP_ADD;
+#else
         abort();
+#endif
     }
 }
 
@@ -13036,7 +13076,11 @@ static int js_unary_arith_bigint(JSContext *ctx,
         bf_neg(r);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     JS_FreeBigInt(ctx, a, &a_s);
     JS_FreeValue(ctx, op1);
@@ -13085,7 +13129,11 @@ static int js_unary_arith_bigfloat(JSContext *ctx,
         bf_neg(r);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     if (a == &a_s)
         bf_delete(a);
@@ -13134,7 +13182,11 @@ static int js_unary_arith_bigdecimal(JSContext *ctx,
         bfdec_neg(r);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     JS_FreeValue(ctx, op1);
     if (unlikely(ret)) {
@@ -13195,7 +13247,11 @@ static no_inline __exception int js_unary_arith_slow(JSContext *ctx,
                 }
                 break;
             default:
+#if QJS_NOABORT
+                break;
+#else
                 abort();
+#endif
             }
             sp[-1] = JS_NewInt64(ctx, v64);
         }
@@ -13232,7 +13288,11 @@ static no_inline __exception int js_unary_arith_slow(JSContext *ctx,
                 d = -d;
                 break;
             default:
+#if QJS_NOABORT
+                break;
+#else
                 abort();
+#endif
             }
             sp[-1] = __JS_NewFloat64(ctx, d);
         }
@@ -13340,7 +13400,11 @@ static int js_binary_arith_bigfloat(JSContext *ctx, OPCodeEnum op,
                      ctx->fp_env.flags | BF_POW_JS_QUIRKS);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     if (a == &a_s)
         bf_delete(a);
@@ -13492,7 +13556,11 @@ static int js_binary_arith_bigint(JSContext *ctx, OPCodeEnum op,
         ret = bf_logic_xor(r, a, b);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     JS_FreeBigInt(ctx, a, &a_s);
     JS_FreeBigInt(ctx, b, &b_s);
@@ -13581,7 +13649,11 @@ static int js_binary_arith_bigdecimal(JSContext *ctx, OPCodeEnum op,
         ret = js_bfdec_pow(r, a, b);
         break;
     default:
+#if QJS_NOABORT
+        ret = -1;
+#else
         abort();
+#endif
     }
     JS_FreeValue(ctx, op1);
     JS_FreeValue(ctx, op2);
@@ -13703,7 +13775,12 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
             }
             break;
         default:
+#if QJS_NOABORT
+            throw_bf_exception(ctx, BF_ST_DIVIDE_ZERO);
+            goto exception;
+#else
             abort();
+#endif
         }
         sp[-2] = JS_NewInt64(ctx, v);
     } else if (tag1 == JS_TAG_BIG_DECIMAL || tag2 == JS_TAG_BIG_DECIMAL) {
@@ -13752,7 +13829,11 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
             dr = js_pow(d1, d2);
             break;
         default:
+#if QJS_NOABORT
+            goto exception;
+#else
             abort();
+#endif
         }
         sp[-2] = __JS_NewFloat64(ctx, dr);
     }
@@ -13960,7 +14041,11 @@ static no_inline __exception int js_binary_logic_slow(JSContext *ctx,
             r = v1 ^ v2;
             break;
         default:
+#if QJS_NOABORT
+            goto exception;
+#else
             abort();
+#endif
         }
         sp[-2] = JS_NewInt32(ctx, r);
     }
@@ -14007,7 +14092,11 @@ static int js_compare_bigfloat(JSContext *ctx, OPCodeEnum op,
         res = bf_cmp_eq(a, b); /* if NaN return false */
         break;
     default:
+#if QJS_NOABORT
+        res = -1;
+#else
         abort();
+#endif
     }
     if (a == &a_s)
         bf_delete(a);
@@ -14057,7 +14146,11 @@ static int js_compare_bigdecimal(JSContext *ctx, OPCodeEnum op,
         res = bfdec_cmp_eq(a, b); /* if NaN return false */
         break;
     default:
+#if QJS_NOABORT
+        res = -1;
+#else
         abort();
+#endif
     }
     JS_FreeValue(ctx, op1);
     JS_FreeValue(ctx, op2);
@@ -14528,7 +14621,12 @@ static no_inline __exception int js_unary_arith_slow(JSContext *ctx,
         d = -d;
         break;
     default:
+#if QJS_NOABORT
+        sp[-1] = JS_UNDEFINED;
+        return -1;
+#else
         abort();
+#endif
     }
     sp[-1] = JS_NewFloat64(ctx, d);
     return 0;
@@ -14584,7 +14682,12 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
         r = js_pow(d1, d2);
         break;
     default:
+#if QJS_NOABORT
+        sp[-1] = JS_UNDEFINED;
+        return -1;
+#else
         abort();
+#endif
     }
     sp[-2] = JS_NewFloat64(ctx, r);
     return 0;
@@ -14674,7 +14777,12 @@ static no_inline __exception int js_binary_logic_slow(JSContext *ctx,
         r = v1 ^ v2;
         break;
     default:
+#if QJS_NOABORT
+        sp[-1] = JS_UNDEFINED;
+        return -1;
+#else
         abort();
+#endif
     }
     sp[-2] = JS_NewInt32(ctx, r);
     return 0;
@@ -16451,7 +16559,12 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
         }
         break;
     default:
+#if QJS_NOABORT
+        ret_val = JS_ThrowTypeError(ctx, "abort");
+        break;
+#else
         abort();
+#endif
     }
 
     rt->current_stack_frame = sf->prev_frame;
@@ -16769,7 +16882,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                         goto exception;
                     break;
                 default:
+#if QJS_NOABORT
+                    goto exception;
+#else
                     abort();
+#endif
                 }
             }
             BREAK;
@@ -19943,7 +20060,11 @@ static void js_async_generator_resume_next(JSContext *ctx,
                     JS_FreeValue(ctx, value);
                     goto done;
                 default:
+#if QJS_NOABORT
+                    break;
+#else
                     abort();
+#endif
                 }
             } else {
                 assert(JS_IsUndefined(func_ret));
@@ -19956,7 +20077,11 @@ static void js_async_generator_resume_next(JSContext *ctx,
             }
             break;
         default:
+#if QJS_NOABORT
+            break;
+#else
             abort();
+#endif
         }
     }
  done: ;
@@ -22408,7 +22533,11 @@ static int define_var(JSParseState *s, JSFunctionDef *fd, JSAtom name,
         }
         break;
     default:
+#if QJS_NOABORT
+        return -1;
+#else
         abort();
+#endif
     }
     return idx;
 }
@@ -23923,7 +24052,11 @@ static __exception int get_lvalue(JSParseState *s, int *popcode, int *pscope,
             emit_op(s, OP_get_super_value);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
     } else {
         switch(opcode) {
@@ -23989,7 +24122,11 @@ static void put_lvalue(JSParseState *s, int opcode, int scope,
             emit_op(s, OP_swap);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         break;
     case OP_get_array_el:
@@ -24015,7 +24152,11 @@ static void put_lvalue(JSParseState *s, int opcode, int scope,
             emit_op(s, OP_rot3l);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         break;
     case OP_get_super_value:
@@ -24034,7 +24175,11 @@ static void put_lvalue(JSParseState *s, int opcode, int scope,
             emit_op(s, OP_rot4l);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         break;
     default:
@@ -24068,7 +24213,11 @@ static void put_lvalue(JSParseState *s, int opcode, int scope,
         emit_op(s, OP_put_super_value);
         break;
     default:
+#if QJS_NOABORT
+        return -1;
+#else
         abort();
+#endif
     }
 }
 
@@ -24120,7 +24269,11 @@ static __exception int js_define_var(JSParseState *s, JSAtom name, int tok)
         var_def_type = JS_VAR_DEF_CATCH;
         break;
     default:
+#if QJS_NOABORT
+        return -1;
+#else
         abort();
+#endif
     }
     if (define_var(s, fd, name, var_def_type) < 0)
         return -1;
@@ -25370,7 +25523,11 @@ static __exception int js_parse_unary(JSParseState *s, int parse_flags)
             emit_op(s, OP_undefined);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         parse_flags = 0;
         break;
@@ -25620,7 +25777,11 @@ static __exception int js_parse_expr_binary(JSParseState *s, int level,
             }
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         if (next_token(s))
             return -1;
@@ -25957,7 +26118,11 @@ static __exception int js_parse_assign_expr2(JSParseState *s, int parse_flags)
             emit_op(s, OP_insert4);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
 
         /* XXX: we disable the OP_put_ref_value optimization by not
@@ -29795,7 +29960,11 @@ static int optimize_scope_make_global_ref(JSContext *ctx, JSFunctionDef *s,
                 op = OP_swap;
                 break;
             default:
+#if QJS_NOABORT
+                return -1;
+#else
                 abort();
+#endif
             }
             bc_buf[pos++] = op;
         }
@@ -30450,7 +30619,11 @@ static int resolve_scope_private_field(JSContext *ctx, JSFunctionDef *s,
             dbuf_putc(bc, JS_THROW_VAR_RO);
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         break;
     case OP_scope_put_private_field:
@@ -30492,11 +30665,19 @@ static int resolve_scope_private_field(JSContext *ctx, JSFunctionDef *s,
             }
             break;
         default:
+#if QJS_NOABORT
+            return -1;
+#else
             abort();
+#endif
         }
         break;
     default:
+#if QJS_NOABORT
+        return -1;
+#else
         abort();
+#endif
     }
     return 0;
 }
@@ -34512,7 +34693,12 @@ static int JS_WriteBigNum(BCWriterState *s, JSValueConst obj)
         tag1 = BC_TAG_BIG_DECIMAL;
         break;
     default:
+#if QJS_NOABORT
+        JS_ThrowInternalError(s->ctx, "unknown tag");
+        return -1;
+#else
         abort();
+#endif
     }
     bc_put_u8(s, tag1);
 
@@ -35483,7 +35669,11 @@ static JSValue JS_ReadBigNum(BCReaderState *s, int tag)
         obj = JS_MKPTR(JS_TAG_BIG_DECIMAL, p);
         break;
     default:
+#if QJS_NOABORT
+	goto fail;
+#else
         abort();
+#endif
     }
 
     /* sign + exponent */
@@ -36368,7 +36558,11 @@ static JSAtom find_atom(JSContext *ctx, const char *name)
             if (str->len == len && !memcmp(str->u.str8, name, len))
                 return JS_DupAtom(ctx, atom);
         }
+#if QJS_NOABORT
+	return JS_ATOM_NULL;
+#else
         abort();
+#endif
     } else {
         atom = JS_NewAtom(ctx, name);
     }
@@ -36394,7 +36588,11 @@ static JSValue JS_InstantiateFunctionListItem2(JSContext *ctx, JSObject *p,
         JS_SetPropertyFunctionList(ctx, val, e->u.prop_list.tab, e->u.prop_list.len);
         break;
     default:
+#if QJS_NOABORT
+        return JS_EXCEPTION;
+#else
         abort();
+#endif
     }
     return val;
 }
@@ -36421,7 +36619,11 @@ static int JS_InstantiateFunctionListItem(JSContext *ctx, JSValueConst obj,
                 val = JS_GetProperty(ctx, ctx->class_proto[JS_CLASS_ARRAY], atom1);
                 break;
             default:
+#if QJS_NOABORT
+		return 0;
+#else
                 abort();
+#endif
             }
             JS_FreeAtom(ctx, atom1);
             if (atom == JS_ATOM_Symbol_toPrimitive) {
@@ -36486,7 +36688,11 @@ static int JS_InstantiateFunctionListItem(JSContext *ctx, JSValueConst obj,
                                   (void *)e, prop_flags);
         return 0;
     default:
+#if QJS_NOABORT
+	return -1;
+#else
         abort();
+#endif
     }
     JS_DefinePropertyValue(ctx, obj, atom, val, prop_flags);
     return 0;
@@ -36546,7 +36752,11 @@ int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
             JS_SetPropertyFunctionList(ctx, val, e->u.prop_list.tab, e->u.prop_list.len);
             break;
         default:
+#if QJS_NOABORT
+	    return -1;
+#else
             abort();
+#endif
         }
         if (JS_SetModuleExport(ctx, m, e->name, val))
             return -1;
@@ -49762,7 +49972,12 @@ static JSValue js_bigint_op1(JSContext *ctx,
         }
         break;
     default:
+#if QJS_NOABORT
+        res = -1;
+        break;
+#else
         abort();
+#endif
     }
     JS_FreeBigInt(ctx, a, &a_s);
     return JS_NewBigInt64(ctx, res);
@@ -50219,7 +50434,11 @@ static JSValue js_bigfloat_get_const(JSContext *ctx,
                     ctx->fp_env.prec, ctx->fp_env.flags);
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     return val;
 }
@@ -50400,7 +50619,11 @@ static JSValue js_bigfloat_fop(JSContext *ctx, JSValueConst this_val,
         }
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     if (a == &a_s)
         bf_delete(a);
@@ -50469,7 +50692,11 @@ static JSValue js_bigfloat_fop2(JSContext *ctx, JSValueConst this_val,
         fe->status |= bf_div(r, a, b, fe->prec, fe->flags);
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     if (a == &a_s)
         bf_delete(a);
@@ -51087,7 +51314,11 @@ static JSValue js_bigdecimal_fop(JSContext *ctx, JSValueConst this_val,
             ret = bfdec_round(r, fe->prec, fe->flags);
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     JS_FreeValue(ctx, op1);
     JS_FreeValue(ctx, op2);
@@ -52427,7 +52658,11 @@ static JSValue js_typed_array_fill(JSContext *ctx, JSValueConst this_val,
         }
         break;
     default:
+#if QJS_NOABORT
+        break;
+#else
         abort();
+#endif
     }
     return JS_DupValue(ctx, this_val);
 }
@@ -52846,7 +53081,11 @@ static JSValue js_typed_array_reverse(JSContext *ctx, JSValueConst this_val,
             }
             break;
         default:
+#if QJS_NOABORT
+            break;
+#else
             abort();
+#endif
         }
     }
     return JS_DupValue(ctx, this_val);
@@ -53187,7 +53426,11 @@ static JSValue js_typed_array_sort(JSContext *ctx, JSValueConst this_val,
             cmpfun = js_TA_cmp_float64;
             break;
         default:
+#if QJS_NOABORT
+            return JS_EXCEPTION;
+#else
             abort();
+#endif
         }
         array_ptr = p->u.array.u.ptr;
         elt_size = 1 << typed_array_size_log2(p->class_id);
@@ -53241,7 +53484,11 @@ static JSValue js_typed_array_sort(JSContext *ctx, JSValueConst this_val,
                 }
                 break;
             default:
+#if QJS_NOABORT
+                return JS_EXCEPTION;
+#else
                 abort();
+#endif
             }
             js_free(ctx, array_tmp);
             js_free(ctx, array_idx);
@@ -53746,7 +53993,11 @@ static JSValue js_dataview_getValue(JSContext *ctx,
             return __JS_NewFloat64(ctx, u.f);
         }
     default:
+#if CONFIG_NOABORT
+        return JS_NewBigInt64(ctx, 0);
+#else
         abort();
+#endif
     }
 }
 
@@ -53840,7 +54091,11 @@ static JSValue js_dataview_setValue(JSContext *ctx,
         put_u64(ptr, v64);
         break;
     default:
+#if CONFIG_NOABORT
+	break;
+#else
         abort();
+#endif
     }
     return JS_UNDEFINED;
 }
@@ -54090,7 +54345,11 @@ static JSValue js_atomics_op(JSContext *ctx,
         break;
 #endif
     default:
+#if CONFIG_NOABORT
+        return JS_ATOM_NULL;
+#else
         abort();
+#endif
     }
 
     switch(class_id) {
@@ -54122,7 +54381,11 @@ static JSValue js_atomics_op(JSContext *ctx,
         break;
 #endif
     default:
+#if CONFIG_NOABORT
+        return JS_ATOM_NULL;
+#else
         abort();
+#endif
     }
     return ret;
 }
@@ -54178,7 +54441,11 @@ static JSValue js_atomics_store(JSContext *ctx,
             atomic_store((_Atomic(uint32_t) *)ptr, v);
             break;
         default:
+#if CONFIG_NOABORT
+            return JS_ATOM_NULL;
+#else
             abort();
+#endif
         }
     }
     return ret;
