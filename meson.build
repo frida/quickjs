@@ -35,9 +35,15 @@ if host_machine.endian() == 'big'
   cdata.set('WORDS_BIGENDIAN', 1)
 endif
 
-if cc.has_header('unistd.h')
-  cdata.set('HAVE_UNISTD_H', 1)
-endif
+platform_headers = [
+  'malloc.h',
+  'unistd.h',
+]
+foreach h : platform_headers
+  if cc.has_header(h)
+    cdata.set('HAVE_' + h.underscorify().to_upper(), 1)
+  endif
+endforeach
 
 if cc.has_function('malloc_usable_size')
   cdata.set('HAVE_MALLOC_USABLE_SIZE', 1)

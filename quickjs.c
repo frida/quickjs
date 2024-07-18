@@ -37,6 +37,9 @@
 #include <time.h>
 #include <fenv.h>
 #include <math.h>
+#if defined(HAVE_MALLOC_H)
+#include <malloc.h>
+#endif
 #if defined(HAVE_UNISTD_H)
 #include <unistd.h>
 #endif
