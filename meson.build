@@ -12,6 +12,7 @@ if meson.is_subproject() and not have_msvc
 endif
 
 threads_dep = dependency('threads')
+atomic_dep = cc.find_library('atomic', required: false)
 dl_dep = cc.find_library('dl', required: false)
 m_dep = cc.find_library('m', required: false)
 
@@ -96,7 +97,7 @@ add_project_arguments(
 )
 
 quickjs = library('quickjs', sources,
-  dependencies: [threads_dep, dl_dep, m_dep],
+  dependencies: [atomic_dep, threads_dep, dl_dep, m_dep],
   install: true,
 )
 quickjs_dep = declare_dependency(
