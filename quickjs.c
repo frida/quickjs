@@ -48155,6 +48155,29 @@ static int getTimezoneOffset(int64_t time)
 
         res = (gm_ti - loc_ti) / 60;
     }
+#elif defined(__NEWLIB__)
+    {
+        struct tm loc;
+        long minutes;
+
+        tzset();
+
+        localtime_r(&ti, &loc);
+
+#ifdef __PICOLIBC__
+        /* picolibc is newlib-derived, and so defines __NEWLIB__, but exports these
+           two without newlib's leading underscore. */
+        minutes = timezone / 60;
+        if (loc.tm_isdst > 0 && daylight)
+            minutes -= 60;
+#else
+        minutes = _timezone / 60;
+        if (loc.tm_isdst > 0 && _daylight)
+            minutes -= 60;
+#endif
+
+        return minutes;
+    }
 #else
     {
         struct tm tm;
