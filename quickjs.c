@@ -43604,6 +43604,21 @@ static int getTimezoneOffset(int64_t time)
 
         res = (gm_ti - loc_ti) / 60;
     }
+#elif defined(__NEWLIB__)
+    {
+        struct tm loc;
+        long minutes;
+
+        tzset();
+
+        localtime_r(&ti, &loc);
+
+        minutes = _timezone / 60;
+        if (loc.tm_isdst > 0 && _daylight)
+            minutes -= 60;
+
+        return minutes;
+    }
 #else
     {
         struct tm tm;
