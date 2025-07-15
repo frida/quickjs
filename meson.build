@@ -15,8 +15,29 @@ threads_dep = dependency('threads')
 dl_dep = cc.find_library('dl', required: false)
 m_dep = cc.find_library('m', required: false)
 
+inline_define_generic = 'inline'
+inline_define_gnulike = 'inline __attribute__((always_inline))'
+
+if get_option('stack_mode') == 'optimize'
+  add_project_arguments(
+    '-fno-inline',
+    '-fno-inline-functions',
+    language: 'c',
+  )
+  inline_define_gnulike = 'inline'
+endif
+
+quickjs_h = configure_file(
+  input: 'quickjs.h.in',
+  output: 'quickjs.h',
+  configuration: {
+    'inline_define_generic': inline_define_generic,
+    'inline_define_gnulike': inline_define_gnulike,
+  },
+)
+
 headers = [
-  'quickjs.h',
+  quickjs_h,
 ]
 
 sources = [

@@ -21,3 +21,10 @@ option('stack_check',
   value: 'auto',
   description: 'Enable stack limitation'
 )
+
+option('stack_mode',
+  type: 'combo',
+  choices: ['default', 'optimize'],
+  value: 'default',
+  description: 'Stack usage mode: "optimize" reduces usage at the cost of performance'
+)
