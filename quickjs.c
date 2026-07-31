@@ -73,8 +73,13 @@
 
 #if !defined(_WIN32)
 /* define it if printf uses the RNDN rounding mode instead of RNDNA */
+/* Directed rounding is unavailable without an FPU: picolibc defines FE_TONEAREST
+   alone. */
+#if defined(FE_DOWNWARD) && defined(FE_UPWARD)
 #define CONFIG_PRINTF_RNDN
 #endif
+#endif
+
 
 /* dump object free */
 //#define DUMP_FREE
