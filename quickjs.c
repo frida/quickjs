@@ -1076,6 +1076,7 @@ enum OPCodeEnum {
     OP_TEMP_END,
 };
 
+static void update_stack_limit(JSRuntime *rt);
 static int JS_InitAtoms(JSRuntime *rt);
 static JSAtom __JS_NewAtomInit(JSRuntime *rt, const char *str, int len,
                                int atom_type);
@@ -1844,6 +1845,7 @@ JSRuntime *JS_NewRuntime(void)
 void JS_Enter(JSRuntime *rt)
 {
     rt->stack_top = js_get_stack_pointer();
+    update_stack_limit(rt);
 }
 
 void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
