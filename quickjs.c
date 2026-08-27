@@ -43,7 +43,7 @@
 #if defined(HAVE_UNISTD_H)
 #include <unistd.h>
 #endif
-#if defined(__APPLE__)
+#if defined(__APPLE__) && __STDC_HOSTED__
 #include <malloc/malloc.h>
 #elif defined(__linux__) || defined(__GLIBC__)
 #include <malloc.h>
@@ -2201,7 +2201,9 @@ void JS_SetRuntimeOpaque(JSRuntime *rt, void *opaque)
 /* default memory allocation functions with memory limitation */
 static size_t js_def_malloc_usable_size(const void *ptr)
 {
-#if defined(__APPLE__)
+#if defined(__STDC_HOSTED__) && !__STDC_HOSTED__
+    return 0;
+#elif defined(__APPLE__)
     return malloc_size(ptr);
 #elif defined(_WIN32)
     return _msize((void *)ptr);
