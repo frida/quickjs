@@ -60,7 +60,7 @@ platform_headers = [
   'unistd.h',
 ]
 foreach h : platform_headers
-  if cc.has_header(h)
+  if cc.compiles('#include <' + h + '>', name: h + ' is usable')
     cdata.set('HAVE_' + h.underscorify().to_upper(), 1)
   endif
 endforeach
