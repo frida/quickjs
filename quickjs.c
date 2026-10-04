@@ -371,6 +371,7 @@ struct JSRuntime {
     /* list of JSGCObjectHeader.link. Used during JS_FreeValueRT() */
     struct list_head gc_zero_ref_count_list;
     struct list_head tmp_obj_list; /* used during GC */
+    struct list_head gc_deferred_free_list; /* live objects released during cycle removal */
     JSGCPhaseEnum gc_phase : 8;
     size_t malloc_gc_threshold;
     struct list_head weakref_list; /* list of JSWeakRefHeader.link */
@@ -2150,6 +2151,7 @@ JSRuntime *JS_NewRuntime2(const JSMallocFunctions *mf, void *opaque)
     init_list_head(&rt->context_list);
     init_list_head(&rt->gc_obj_list);
     init_list_head(&rt->gc_zero_ref_count_list);
+    init_list_head(&rt->gc_deferred_free_list);
     rt->gc_phase = JS_GC_PHASE_NONE;
     init_list_head(&rt->weakref_list);
 
@@ -6622,6 +6624,13 @@ void __JS_FreeValueRT(JSRuntime *rt, JSValue v)
                 if (rt->gc_phase == JS_GC_PHASE_NONE) {
                     free_zero_refcount(rt);
                 }
+            } else if (js_rc(p)->mark == 0) {
+                /* A live object released by the cycle being removed, e.g. a
+                   WeakMap value whose key is part of the cycle. It is not in
+                   tmp_obj_list, so defer it and free it once the cycle pass
+                   is done. */
+                list_del(&p->link);
+                list_add_tail(&p->link, &rt->gc_deferred_free_list);
             }
         }
         break;
@@ -6952,6 +6961,13 @@ static void gc_free_cycles(JSRuntime *rt)
     }
 
     init_list_head(&rt->gc_zero_ref_count_list);
+
+    /* free the live objects that the removed cycles released */
+    if (!list_empty(&rt->gc_deferred_free_list)) {
+        list_splice(&rt->gc_deferred_free_list, &rt->gc_zero_ref_count_list);
+        init_list_head(&rt->gc_deferred_free_list);
+        free_zero_refcount(rt);
+    }
 }
 
 static void JS_RunGCInternal(JSRuntime *rt, BOOL remove_weak_objects)
