@@ -1,6 +1,6 @@
 /*
  * QuickJS atom definitions
- * 
+ *
  * Copyright (c) 2017-2018 Fabrice Bellard
  * Copyright (c) 2017-2018 Charlie Gordon
  *
@@ -78,14 +78,16 @@ DEF(await, "await")
 /* empty string */
 DEF(empty_string, "")
 /* identifiers */
+DEF(keys, "keys")
+DEF(size, "size")
 DEF(length, "length")
 DEF(fileName, "fileName")
 DEF(lineNumber, "lineNumber")
+DEF(columnNumber, "columnNumber")
 DEF(message, "message")
 DEF(cause, "cause")
 DEF(errors, "errors")
 DEF(stack, "stack")
-DEF(prepareStackTrace, "prepareStackTrace")
 DEF(name, "name")
 DEF(toString, "toString")
 DEF(toLocaleString, "toLocaleString")
@@ -145,6 +147,7 @@ DEF(flags, "flags")
 DEF(global, "global")
 DEF(unicode, "unicode")
 DEF(raw, "raw")
+DEF(rawJSON, "rawJSON")
 DEF(new_target, "new.target")
 DEF(this_active_func, "this.active_func")
 DEF(home_object, "<home_object>")
@@ -173,19 +176,27 @@ DEF(status, "status")
 DEF(reason, "reason")
 DEF(globalThis, "globalThis")
 DEF(bigint, "bigint")
-#ifdef CONFIG_BIGNUM
-DEF(bigfloat, "bigfloat")
-DEF(bigdecimal, "bigdecimal")
-DEF(roundingMode, "roundingMode")
-DEF(maximumSignificantDigits, "maximumSignificantDigits")
-DEF(maximumFractionDigits, "maximumFractionDigits")
-#endif
+DEF(minus_zero, "-0")
+DEF(Infinity, "Infinity")
+DEF(minus_Infinity, "-Infinity")
+DEF(NaN, "NaN")
+DEF(hasIndices, "hasIndices")
+DEF(ignoreCase, "ignoreCase")
+DEF(multiline, "multiline")
+DEF(dotAll, "dotAll")
+DEF(sticky, "sticky")
+DEF(unicodeSets, "unicodeSets")
 /* the following 3 atoms are only used with CONFIG_ATOMICS */
 DEF(not_equal, "not-equal")
 DEF(timed_out, "timed-out")
 DEF(ok, "ok")
+DEF(toISOString, "toISOString")
+DEF(alphabet, "alphabet")
+DEF(lastChunkHandling, "lastChunkHandling")
+DEF(omitPadding, "omitPadding")
 /* */
 DEF(toJSON, "toJSON")
+DEF(maxByteLength, "maxByteLength")
 /* class names */
 DEF(Object, "Object")
 DEF(Array, "Array")
@@ -205,7 +216,7 @@ DEF(RegExp, "RegExp")
 DEF(ArrayBuffer, "ArrayBuffer")
 DEF(SharedArrayBuffer, "SharedArrayBuffer")
 /* must keep same order as class IDs for typed arrays */
-DEF(Uint8ClampedArray, "Uint8ClampedArray") 
+DEF(Uint8ClampedArray, "Uint8ClampedArray")
 DEF(Int8Array, "Int8Array")
 DEF(Uint8Array, "Uint8Array")
 DEF(Int16Array, "Int16Array")
@@ -214,21 +225,21 @@ DEF(Int32Array, "Int32Array")
 DEF(Uint32Array, "Uint32Array")
 DEF(BigInt64Array, "BigInt64Array")
 DEF(BigUint64Array, "BigUint64Array")
+DEF(Float16Array, "Float16Array")
 DEF(Float32Array, "Float32Array")
 DEF(Float64Array, "Float64Array")
 DEF(DataView, "DataView")
 DEF(BigInt, "BigInt")
-#ifdef CONFIG_BIGNUM
-DEF(BigFloat, "BigFloat")
-DEF(BigFloatEnv, "BigFloatEnv")
-DEF(BigDecimal, "BigDecimal")
-DEF(OperatorSet, "OperatorSet")
-DEF(Operators, "Operators")
-#endif
+DEF(WeakRef, "WeakRef")
+DEF(FinalizationRegistry, "FinalizationRegistry")
 DEF(Map, "Map")
 DEF(Set, "Set") /* Map + 1 */
 DEF(WeakMap, "WeakMap") /* Map + 2 */
 DEF(WeakSet, "WeakSet") /* Map + 3 */
+DEF(Iterator, "Iterator")
+DEF(IteratorHelper, "Iterator Helper")
+DEF(IteratorConcat, "Iterator Concat")
+DEF(IteratorWrap, "Iterator Wrap")
 DEF(Map_Iterator, "Map Iterator")
 DEF(Set_Iterator, "Set Iterator")
 DEF(Array_Iterator, "Array Iterator")
@@ -251,6 +262,7 @@ DEF(SyntaxError, "SyntaxError")
 DEF(TypeError, "TypeError")
 DEF(URIError, "URIError")
 DEF(InternalError, "InternalError")
+DEF(AggregateError, "AggregateError")
 /* private symbols */
 DEF(Private_brand, "<brand>")
 /* symbols */
@@ -267,8 +279,5 @@ DEF(Symbol_hasInstance, "Symbol.hasInstance")
 DEF(Symbol_species, "Symbol.species")
 DEF(Symbol_unscopables, "Symbol.unscopables")
 DEF(Symbol_asyncIterator, "Symbol.asyncIterator")
-#ifdef CONFIG_BIGNUM
-DEF(Symbol_operatorSet, "Symbol.operatorSet")
-#endif
-    
+
 #endif /* DEF */
