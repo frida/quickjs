@@ -375,6 +375,7 @@ struct JSRuntime {
     JSGCPhaseEnum gc_phase : 8;
     size_t malloc_gc_threshold;
     struct list_head weakref_list; /* list of JSWeakRefHeader.link */
+    BOOL weakref_sweep_pending;
 #ifdef DUMP_LEAKS
     struct list_head string_list; /* list of JSString.link */
 #endif
@@ -2154,6 +2155,7 @@ JSRuntime *JS_NewRuntime2(const JSMallocFunctions *mf, void *opaque)
     init_list_head(&rt->gc_deferred_free_list);
     rt->gc_phase = JS_GC_PHASE_NONE;
     init_list_head(&rt->weakref_list);
+    rt->weakref_sweep_pending = FALSE;
 
 #ifdef DUMP_LEAKS
     init_list_head(&rt->string_list);
@@ -6517,6 +6519,8 @@ static void free_object(JSRuntime *rt, JSObject *p)
     p->u.func.home_object = NULL;
 
     remove_gc_object(&p->header);
+    if (p->weakref_count != 0)
+        rt->weakref_sweep_pending = TRUE;
     if (rt->gc_phase == JS_GC_PHASE_REMOVE_CYCLES) {
         if (js_rc(p)->ref_count == 0 && p->weakref_count == 0) {
             js_free_rt(rt, p);
@@ -6977,6 +6981,7 @@ static void JS_RunGCInternal(JSRuntime *rt, BOOL remove_weak_objects)
            the associated Map/Set entries and queue the finalization
            registry callbacks. */
         gc_remove_weak_objects(rt);
+        rt->weakref_sweep_pending = FALSE;
     }
     
     /* decrement the reference of the children of each object. mark =
@@ -6993,6 +6998,14 @@ static void JS_RunGCInternal(JSRuntime *rt, BOOL remove_weak_objects)
 void JS_RunGC(JSRuntime *rt)
 {
     JS_RunGCInternal(rt, TRUE);
+}
+
+void JS_SweepDeadWeakRefs(JSRuntime *rt)
+{
+    if (!rt->weakref_sweep_pending)
+        return;
+    rt->weakref_sweep_pending = FALSE;
+    gc_remove_weak_objects(rt);
 }
 
 /* Return false if not an object or if the object has already been
