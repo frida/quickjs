@@ -3393,32 +3393,45 @@ const char *lre_get_groupnames(const uint8_t *bc_buf)
     return (const char *)(bc_buf + RE_HEADER_LEN + re_bytecode_len);
 }
 
-void lre_byte_swap(uint8_t *bc_buf, int bc_buf_len)
+static uint16_t lre_swap_u16(uint8_t *p, BOOL is_byte_swapped)
 {
-    uint8_t *pc = bc_buf;
-    uint8_t *end = bc_buf + bc_buf_len;
+    uint16_t v = get_u16(p);
+    put_u16(p, bswap16(v));
+    return is_byte_swapped ? bswap16(v) : v;
+}
+
+static uint32_t lre_swap_u32(uint8_t *p, BOOL is_byte_swapped)
+{
+    uint32_t v = get_u32(p);
+    put_u32(p, bswap32(v));
+    return is_byte_swapped ? bswap32(v) : v;
+}
+
+void lre_byte_swap(uint8_t *buf, int buf_len, int is_byte_swapped)
+{
+    uint8_t *pc, *end;
     int len, opcode, n, i;
 
-    assert(bc_buf_len > RE_HEADER_LEN);
+    assert(buf_len >= RE_HEADER_LEN);
 
-    pc += 3;
+    lre_swap_u16(buf + RE_HEADER_FLAGS, is_byte_swapped);
+    len = lre_swap_u32(buf + RE_HEADER_BYTECODE_LEN, is_byte_swapped);
+    assert(RE_HEADER_LEN + len <= buf_len);
 
-    len = get_u32(pc);
-    assert(len == bc_buf_len - RE_HEADER_LEN);
-    put_u32(pc, bswap32(len));
-    pc += 4;
+    pc = buf + RE_HEADER_LEN;
+    end = pc + len;
 
     while (pc < end) {
         opcode = *pc++;
         assert(opcode < REOP_COUNT);
 
         len = reopcode_info[opcode].size - 1;
-        assert(pc + len <= bc_buf + bc_buf_len);
+        assert(pc + len <= end);
 
         switch(opcode) {
         case REOP_char:
         case REOP_char_i:
-            put_u16(pc, bswap16(get_u16(pc)));
+            lre_swap_u16(pc, is_byte_swapped);
             break;
         case REOP_char32:
         case REOP_char32_i:
@@ -3427,46 +3440,38 @@ void lre_byte_swap(uint8_t *bc_buf, int bc_buf_len)
         case REOP_split_next_first:
         case REOP_lookahead:
         case REOP_negative_lookahead:
-            put_u32(pc, bswap32(get_u32(pc)));
+            lre_swap_u32(pc, is_byte_swapped);
             break;
         case REOP_loop:
         case REOP_set_i32:
-            put_u32(pc + 1, bswap32(get_u32(pc + 1)));
+            lre_swap_u32(pc + 1, is_byte_swapped);
             break;
         case REOP_loop_split_goto_first:
         case REOP_loop_split_next_first:
         case REOP_loop_check_adv_split_goto_first:
         case REOP_loop_check_adv_split_next_first:
-            put_u32(pc + 1, bswap32(get_u32(pc + 1)));
-            put_u32(pc + 5, bswap32(get_u32(pc + 5)));
+            lre_swap_u32(pc + 1, is_byte_swapped);
+            lre_swap_u32(pc + 5, is_byte_swapped);
+            break;
+        case REOP_back_reference:
+        case REOP_back_reference_i:
+        case REOP_backward_back_reference:
+        case REOP_backward_back_reference_i:
+            len += pc[0];
             break;
         case REOP_range:
         case REOP_range_i:
-            n = get_u16(pc);
-            put_u16(pc, bswap16(n));
-            pc += 2;
-
-            for(i = 0; i < n * 2; i++) {
-                put_u16(pc, bswap16(get_u16(pc)));
-                pc += 2;
-            }
-
-            len = 0;
-
+            n = lre_swap_u16(pc, is_byte_swapped);
+            for(i = 0; i < n * 2; i++)
+                lre_swap_u16(pc + 2 + i * 2, is_byte_swapped);
+            len += n * 4;
             break;
         case REOP_range32:
         case REOP_range32_i:
-            n = get_u16(pc);
-            put_u16(pc, bswap16(n));
-            pc += 2;
-
-            for(i = 0; i < n * 2; i++) {
-                put_u32(pc, bswap32(get_u32(pc)));
-                pc += 4;
-            }
-
-            len = 0;
-
+            n = lre_swap_u16(pc, is_byte_swapped);
+            for(i = 0; i < n * 2; i++)
+                lre_swap_u32(pc + 2 + i * 4, is_byte_swapped);
+            len += n * 8;
             break;
         default:
             break;

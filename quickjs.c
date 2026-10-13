@@ -38370,7 +38370,7 @@ static int JS_WriteRegExpByteSwapped(BCWriterState *s, JSValueConst obj)
         goto fail;
     swapped = JS_VALUE_GET_STRING(swapped_val);
 
-    lre_byte_swap(swapped->u.str8, swapped->len);
+    lre_byte_swap(swapped->u.str8, swapped->len, FALSE);
 
     bc_put_u8(s, BC_TAG_STRING);
     JS_WriteString(s, swapped);
@@ -39424,7 +39424,7 @@ static void JS_ReadRegExpsByteSwapped(JSFunctionBytecode *b)
         case OP_regexp:
             {
                 JSString *re_bytecode = JS_VALUE_GET_STRING(b->cpool[prev_push_const_idx]);
-                lre_byte_swap(re_bytecode->u.str8, re_bytecode->len);
+                lre_byte_swap(re_bytecode->u.str8, re_bytecode->len, TRUE);
             }
             break;
         default:
